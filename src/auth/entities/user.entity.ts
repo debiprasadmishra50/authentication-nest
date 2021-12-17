@@ -18,4 +18,12 @@ export class User {
     @Column()
     @Exclude({ toPlainOnly: true })
     password: string;
+
+    @Column({ default: null })
+    @Exclude({ toPlainOnly: true })
+    passwordResetToken: string;
+
+    @Column({ default: null })
+    @Exclude({ toPlainOnly: true })
+    passwordResetExpires: string;
 }

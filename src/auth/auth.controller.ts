@@ -11,7 +11,7 @@ import {
     Res,
     UseGuards,
     Req,
-    HttpStatus,
+    InternalServerErrorException,
 } from "@nestjs/common";
 import { AuthService } from "./auth.service";
 import { CreateUserDto } from "./dto/create-user.dto";
@@ -22,21 +22,32 @@ import { LoginUserDto } from "./dto/login-user.dto";
 import { Request, Response } from "express";
 import { LocalAuthGuard } from "./guards/local-auth.guard";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
+import { ThrottlerGuard } from "@nestjs/throttler";
+import { ForgotPasswordDto } from "./dto/forgot-password.dto";
+import { ResetPasswordDto } from "./dto/reset-password.dto";
+import { GetUser } from "./decorators/get-user.decorator";
+import { UpdateMyPasswordDto } from "./dto/update-password.dto";
 
 @Controller("auth")
-@UseInterceptors(TransformInterceptor)
 export class AuthController {
     constructor(private readonly authService: AuthService) {}
 
     @Post("signup")
-    async signup(@Body() createUserDto: CreateUserDto, @Res() res: Response) {
+    @UseInterceptors(TransformInterceptor)
+    async signup(@Body() createUserDto: CreateUserDto, @Res({ passthrough: true }) res: Response) {
         const { user, token } = await this.authService.signup(createUserDto);
 
-        res.status(HttpStatus.CREATED).json({
+        res.cookie("jwt", token, {
+            // secure: req.headers["x-forwarded-proto"] === "https" || true,
+            httpOnly: true,
+            expires: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90days
+        });
+
+        return {
             status: "success",
             user,
             token,
-        });
+        };
     }
 
     /* 
@@ -44,6 +55,7 @@ export class AuthController {
     */
     @Post("login")
     @UseGuards(LocalAuthGuard)
+    @UseInterceptors(TransformInterceptor)
     async loginPassportLocal(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
         const user = req.user;
 
@@ -55,17 +67,14 @@ export class AuthController {
             expires: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90days
         });
 
-        res.status(201).json({
-            status: "success",
-            user,
-            token,
-        });
+        return { status: "success", user, token };
     }
 
     /* 
         Jwt Auth
     */
     // @Post("login")
+    // @UseInterceptors(TransformInterceptor)
     // async loginJwt(@Body() loginUserDto: LoginUserDto, @Res({ passthrough: true }) res: Response) {
     //     const { user, token } = await this.authService.loginJwt(loginUserDto);
 
@@ -75,22 +84,72 @@ export class AuthController {
     //         expires: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90days
     //     });
 
-    //     res.status(201).json({
-    //         user,
-    //         token,
-    //     });
+    //     return { status: "success", user, token };
     // }
 
-    @UseGuards(JwtAuthGuard)
     @Get("logout")
-    async logout(@Res() res: Response) {
+    @UseGuards(JwtAuthGuard)
+    async logout(@Res({ passthrough: true }) res: Response) {
         res.cookie("jwt", "loggedout", {
             expires: new Date(Date.now() + 10 * 1000), // 10 secs
             httpOnly: true,
         });
 
-        res.status(200).json({
+        return { status: "success" };
+    }
+
+    @Post("forgotPassword")
+    async forgotPassword(@Body() forgotPassword: ForgotPasswordDto, @Req() req: Request) {
+        const status = await this.authService.forgotPassword(forgotPassword?.email, req);
+
+        if (!status) throw new InternalServerErrorException("Error sending email!");
+
+        return {
             status: "success",
+            message: "Password reset email sent successfully",
+        };
+    }
+
+    @Patch("resetPassword/:token")
+    @UseInterceptors(TransformInterceptor)
+    async resetPassword(
+        @Param("token") token: string,
+        @Body() resetPassword: ResetPasswordDto,
+        @Res({ passthrough: true }) res: Response,
+    ) {
+        const { updatedUser, newToken } = await this.authService.resetPassword(
+            token,
+            resetPassword,
+        );
+
+        res.cookie("jwt", newToken, {
+            // secure: req.headers["x-forwarded-proto"] === "https" || true,
+            httpOnly: true,
+            expires: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90days
         });
+
+        return { status: "success", user: updatedUser, token: newToken };
+    }
+
+    @Patch("updateMyPassword")
+    @UseGuards(JwtAuthGuard)
+    @UseInterceptors(TransformInterceptor)
+    async updateMyPassword(
+        @Body() updateMyPassword: UpdateMyPasswordDto,
+        @GetUser() user: User,
+        @Res({ passthrough: true }) res: Response,
+    ) {
+        const { user: updatedUser, token: newToken } = await this.authService.updateMyPassword(
+            updateMyPassword,
+            user,
+        );
+
+        res.cookie("jwt", newToken, {
+            // secure: req.headers["x-forwarded-proto"] === "https" || true,
+            httpOnly: true,
+            expires: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90days
+        });
+
+        return { status: "success", user: updatedUser, token: newToken };
     }
 }

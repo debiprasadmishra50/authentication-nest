@@ -1,4 +1,10 @@
-import { Controller, Get, UseGuards } from "@nestjs/common";
+import {
+    ClassSerializerInterceptor,
+    Controller,
+    Get,
+    UseGuards,
+    UseInterceptors,
+} from "@nestjs/common";
 import { AppService } from "./app.service";
 import { GetUser } from "./auth/decorators/get-user.decorator";
 import { User } from "./auth/entities/user.entity";
@@ -10,6 +16,7 @@ export class AppController {
 
     @Get("users/me")
     @UseGuards(JwtAuthGuard)
+    @UseInterceptors(ClassSerializerInterceptor)
     async getUser(@GetUser() user: User): Promise<User> {
         return user;
     }

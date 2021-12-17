@@ -3,6 +3,7 @@ import { EntityRepository, Repository } from "typeorm";
 import { CreateUserDto } from "../dto/create-user.dto";
 import { User } from "../entities/user.entity";
 import * as bcrypt from "bcrypt";
+import * as crypto from "crypto";
 
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {
@@ -21,5 +22,18 @@ export class UserRepository extends Repository<User> {
             if (err.code === "23505") throw new ConflictException("Email already exists");
             else throw new InternalServerErrorException();
         }
+    }
+
+    async updateUser(user: User): Promise<string> {
+        const resetToken: string = crypto.randomBytes(32).toString("hex");
+
+        user.passwordResetToken = crypto.createHash("sha256").update(resetToken).digest("hex");
+
+        const timestamp = Date.now() + 10 * 60 * 1000;
+        user.passwordResetExpires = timestamp.toString();
+
+        await this.save(user);
+
+        return resetToken;
     }
 }
