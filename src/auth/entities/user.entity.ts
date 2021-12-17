@@ -26,4 +26,11 @@ export class User {
     @Column({ default: null })
     @Exclude({ toPlainOnly: true })
     passwordResetExpires: string;
+
+    @Column({ type: "boolean", default: false })
+    active: boolean;
+
+    @Column({ default: null })
+    @Exclude({ toPlainOnly: true })
+    activeToken: string;
 }

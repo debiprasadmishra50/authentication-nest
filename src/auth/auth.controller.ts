@@ -34,8 +34,12 @@ export class AuthController {
 
     @Post("signup")
     @UseInterceptors(TransformInterceptor)
-    async signup(@Body() createUserDto: CreateUserDto, @Res({ passthrough: true }) res: Response) {
-        const { user, token } = await this.authService.signup(createUserDto);
+    async signup(
+        @Body() createUserDto: CreateUserDto,
+        @Req() req: Request,
+        @Res({ passthrough: true }) res: Response,
+    ) {
+        const { user, token } = await this.authService.signup(createUserDto, req);
 
         res.cookie("jwt", token, {
             // secure: req.headers["x-forwarded-proto"] === "https" || true,
@@ -48,6 +52,13 @@ export class AuthController {
             user,
             token,
         };
+    }
+
+    @Patch("activate/:token")
+    async activateAccount(@Param("token") token: string) {
+        const isActivated = await this.authService.activateAccount(token);
+
+        if (isActivated) return { status: "success", message: "Account Activated successfully" };
     }
 
     /* 

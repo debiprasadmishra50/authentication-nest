@@ -32,8 +32,11 @@ export class AuthService {
         private readonly mailService: MailService,
     ) {}
 
-    async signup(createUserDto: CreateUserDto): Promise<{ user: User; token: string }> {
-        const user = await this.userRepository.createUser(createUserDto);
+    async signup(
+        createUserDto: CreateUserDto,
+        req: Request,
+    ): Promise<{ user: User; token: string }> {
+        const { user, activateToken } = await this.userRepository.createUser(createUserDto);
 
         this.logger.log("User Created");
 
@@ -42,12 +45,39 @@ export class AuthService {
         this.logger.log("Sending welcome email");
         await this.mailService.sendUserConfirmationMail(user);
 
-        // TODO: send account activation link
+        this.logger.log("Sending Account activation email");
+        const activeURL = `${req.protocol}://${req.get(
+            "host",
+        )}/api/v1/auth/activate/${activateToken}`;
+        //NOTE: FOR UI
+        // const resetURL = `${req.protocol}://${req.get("host")}/activate/${activateToken}`;
+        await this.mailService.sendUserActivationToken(user, activeURL);
 
         // TODO: Send confirmation SMS to new user
 
         user.password = undefined;
         return { user, token };
+    }
+
+    async activateAccount(token: string) {
+        this.logger.log("Generating token");
+        const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+        this.logger.log("Searching User with activation token");
+        const user = await this.userRepository.findOne({ activeToken: hashedToken });
+
+        if (!user) throw new BadRequestException("Invalid token or token expired");
+
+        this.logger.log("Activate Account");
+        user.active = true;
+        user.activeToken = null;
+
+        await this.userRepository.save(user);
+
+        this.logger.log("Send account activation mail to user");
+        await this.mailService.sendUserAccountActivationMail(user);
+
+        return true;
     }
 
     /*

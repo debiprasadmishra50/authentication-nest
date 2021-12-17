@@ -15,6 +15,27 @@ export class MailService {
         });
     }
 
+    async sendUserAccountActivationMail(user: User) {
+        const text = `Welcome ${user.firstName}, You've successfully activated our account.`;
+        await this.mailService.sendMail({
+            to: user.email,
+            subject: `Hi ${user.firstName}!`,
+            text,
+            html: `<h1>${text}</h1>`,
+        });
+    }
+
+    async sendUserActivationToken(user: User, activeURL: string) {
+        const text = `Hi, Please verify your email to get full access to your account. To activate click on this link ${activeURL}\nIf you already have access, please ignore this email.`;
+
+        await this.mailService.sendMail({
+            to: user.email,
+            subject: `Hi ${user.firstName}! Please verify your email`,
+            text,
+            html: `<h3>${text}</h3>`,
+        });
+    }
+
     async sendForgotPasswordMail(email: string, resetURL: string) {
         const text = `Forgot your password? Submit a PATCH request with your new password and passwordConfirm to ${resetURL}\nIf you didn't forget your password, please ignore this email.`;
 
