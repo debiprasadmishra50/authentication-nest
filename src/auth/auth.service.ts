@@ -21,6 +21,7 @@ import { UpdateMyPasswordDto } from "./dto/update-password.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { User } from "./entities/user.entity";
 import { UserRepository } from "./repositories/user.repository";
+import { argon2hash, argon2verify } from "./argon2/argon2";
 
 @Injectable()
 export class AuthService {
@@ -43,7 +44,7 @@ export class AuthService {
         const token: string = await this.signToken(user);
 
         this.logger.log("Sending welcome email");
-        await this.mailService.sendUserConfirmationMail(user);
+        this.mailService.sendUserConfirmationMail(user);
 
         this.logger.log("Sending Account activation email");
         const activeURL = `${req.protocol}://${req.get(
@@ -51,7 +52,7 @@ export class AuthService {
         )}/api/v1/auth/activate/${activateToken}`;
         //NOTE: FOR UI
         // const resetURL = `${req.protocol}://${req.get("host")}/activate/${activateToken}`;
-        await this.mailService.sendUserActivationToken(user, activeURL);
+        this.mailService.sendUserActivationToken(user, activeURL);
 
         // TODO: Send confirmation SMS to new user
 
@@ -75,7 +76,7 @@ export class AuthService {
         await this.userRepository.save(user);
 
         this.logger.log("Send account activation mail to user");
-        await this.mailService.sendUserAccountActivationMail(user);
+        this.mailService.sendUserAccountActivationMail(user);
 
         return true;
     }
@@ -90,8 +91,11 @@ export class AuthService {
         const user = await this.userRepository.findOne({ email });
 
         this.logger.log("Verifying User");
-        if (user && (await bcrypt.compare(password, user.password))) {
-            user.password = undefined;
+        // NOTE: For Bcrypt
+        // if (user && (await bcrypt.compare(password, user.password))) {
+        // NOTE: For Argon2
+        if (user && (await argon2verify(user.password, password))) {
+            // user.password = undefined;
             return user;
         }
 
@@ -115,10 +119,13 @@ export class AuthService {
         const user = await this.userRepository.findOne({ email });
 
         this.logger.log("Verifing User");
-        if (user && (await bcrypt.compare(password, user.password))) {
+        // NOTE: For Bcrypt
+        // if (user && (await bcrypt.compare(password, user.password))) {
+        // NOTE: For Argon2
+        if (user && (await argon2verify(user.password, password))) {
             const token: string = await this.signToken(user);
 
-            user.password = undefined;
+            // user.password = undefined;
             return { user, token };
         }
 
@@ -134,7 +141,7 @@ export class AuthService {
         }
 
         this.logger.log("Creating password reset token");
-        const resetToken: string = await this.userRepository.updateUser(user);
+        const resetToken: string = await this.userRepository.createPasswordResetToken(user);
 
         const resetURL = `${req.protocol}://${req.get(
             "host",
@@ -144,7 +151,7 @@ export class AuthService {
 
         try {
             this.logger.log("Sending password reset token mail");
-            await this.mailService.sendForgotPasswordMail(email, resetURL);
+            this.mailService.sendForgotPasswordMail(email, resetURL);
 
             return true;
         } catch (err) {
@@ -164,7 +171,7 @@ export class AuthService {
             throw new NotAcceptableException("password and passwordConfirm should match");
         }
 
-        this.logger.log("Generating token");
+        this.logger.log("Generating hash from token");
         const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
 
         this.logger.log("Retrieving user");
@@ -179,7 +186,10 @@ export class AuthService {
         }
 
         this.logger.log("Hashing the password");
-        user.password = await bcrypt.hash(password, 10);
+        // NOTE: For Bcrypt
+        // user.password = await bcrypt.hash(password, 10);
+        // NOTE: For Argon2
+        user.password = await argon2hash(password);
 
         user.passwordResetExpires = null;
         user.passwordResetToken = null;
@@ -190,7 +200,7 @@ export class AuthService {
         const newToken: string = await this.signToken(updatedUser);
 
         this.logger.log("Sending reset password confirmation mail");
-        await this.mailService.sendPasswordResetConfirmationMail(user);
+        this.mailService.sendPasswordResetConfirmationMail(user);
 
         return { updatedUser, newToken };
     }
@@ -199,7 +209,10 @@ export class AuthService {
         const { passwordCurrent, password, passwordConfirm } = updateMyPassword;
 
         this.logger.log("Verifying current password from user");
-        if (!(await bcrypt.compare(passwordCurrent, user.password))) {
+        // NOTE: For Bcrypt
+        // if (!(await bcrypt.compare(passwordCurrent, user.password))) {
+        // NOTE: For Argon2
+        if (!(await argon2verify(user.password, passwordCurrent))) {
             throw new UnauthorizedException("Invalid password");
         }
 
@@ -212,14 +225,17 @@ export class AuthService {
         }
 
         this.logger.log("Masking Password");
-        const hashedPassword = await bcrypt.hash(password, 10);
+        // NOTE: For Bcrypt
+        // const hashedPassword = await bcrypt.hash(password, 10);
+        // NOTE: For Argon2
+        const hashedPassword = await argon2hash(password);
         user.password = hashedPassword;
 
         this.logger.log("Saving Updated User");
         await this.userRepository.save(user);
 
         this.logger.log("Sending password update mail");
-        await this.mailService.sendPasswordUpdateEmail(user);
+        this.mailService.sendPasswordUpdateEmail(user);
 
         this.logger.log("Login the user and send the token again");
         const token: string = await this.signToken(user);

@@ -4,13 +4,18 @@ import { CreateUserDto } from "../dto/create-user.dto";
 import { User } from "../entities/user.entity";
 import * as bcrypt from "bcrypt";
 import * as crypto from "crypto";
+import { argon2hash } from "../argon2/argon2";
 
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {
     async createUser(createAuthDto: CreateUserDto): Promise<{ user: User; activateToken: string }> {
         let { password } = createAuthDto;
 
-        password = await bcrypt.hash(password, 10);
+        // NOTE: For Bcrypt
+        // password = await bcrypt.hash(password, 10);
+        // NOTE: For Argon2
+        password = await argon2hash(password);
+
         createAuthDto.password = password;
 
         try {
@@ -28,7 +33,7 @@ export class UserRepository extends Repository<User> {
         }
     }
 
-    async updateUser(user: User): Promise<string> {
+    async createPasswordResetToken(user: User): Promise<string> {
         const resetToken: string = crypto.randomBytes(32).toString("hex");
 
         user.passwordResetToken = crypto.createHash("sha256").update(resetToken).digest("hex");

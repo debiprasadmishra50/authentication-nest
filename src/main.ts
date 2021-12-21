@@ -4,6 +4,8 @@ import * as cookieParser from "cookie-parser";
 import * as compression from "compression";
 import * as helmet from "helmet";
 import * as csurf from "csurf";
+import * as xssClean from "xss-clean";
+import * as hpp from "hpp";
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
@@ -45,7 +47,7 @@ async function bootstrap() {
                         // "http:",
                         // "data:",
                     ],
-                    styleSrc: ["self", "https:", "http:", "'unsafe-inline'"],
+                    styleSrc: ["'self'", "https:", "http:", "'unsafe-inline'"],
                     imgSrc: ["'self'", "data:", "blob:"],
                     fontSrc: ["'self'", "https:", "data:"],
                     childSrc: ["'self'", "blob:"],
@@ -55,6 +57,8 @@ async function bootstrap() {
             },
         }),
     );
+    app.use(xssClean());
+    app.use(hpp());
     app.useGlobalPipes(new ValidationPipe({ transform: true }));
 
     const port = process.env.PORT || 3000;
