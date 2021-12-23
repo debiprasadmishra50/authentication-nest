@@ -1,3 +1,8 @@
-# LeapTrade 2.0
+# Complete Authentication setup
 
-#### Leaptrade 2.0, Heaven for gamers
+    Authentication setup using Technologies:
+       1. Nest JS
+       2. Postgres
+       3. TypeORM
+       4. argon2 / bcrypt
+
